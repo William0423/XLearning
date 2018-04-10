@@ -12,15 +12,20 @@ import org.apache.hadoop.mapred.JobConf;
 import java.io.IOException;
 import java.util.Properties;
 
+/**
+ * 命令行启动的参数类：
+ */
 class ClientArguments {
   private static final Log LOG = LogFactory.getLog(ClientArguments.class);
   private Options allOptions;
   String appName;
+  // app的类型，是tensorflow还是sk-learn
   String appType;
   int amMem;
   int amCores;
   int workerMemory;
   int workerVCores;
+  int workerGpus;
   int workerNum;
   int psMemory;
   int psVCores;
@@ -28,7 +33,9 @@ class ClientArguments {
   String[] xlearningFiles;
   String[] libJars;
   String launchCmd;
+  // 输入模式的策略，目前主要有DOWNLOAD、STREAM、PLACEHOLDER
   String inputStrategy;
+  // 输出文件加载策略，目前主要有DOWNLOAD、STREAM
   String outputStrategy;
   Properties inputs;
   Properties outputs;
@@ -42,9 +49,6 @@ class ClientArguments {
   int boardReloadInterval;
   String boardLogDir;
   Boolean boardEnable;
-  String boardHistoryDir;
-  String boardModelPB;
-  int boardCacheTimeout;
   Boolean isRenameInputFile;
   public Boolean userClasspathFirst;
   public int streamEpoch;
@@ -65,6 +69,7 @@ class ClientArguments {
     amCores = XLearningConfiguration.DEFAULT_XLEARNING_AM_CORES;
     workerMemory = XLearningConfiguration.DEFAULT_XLEARNING_WORKER_MEMORY;
     workerVCores = XLearningConfiguration.DEFAULT_XLEARNING_WORKER_VCORES;
+    workerGpus = XLearningConfiguration.DEFAULT_XLEARNING_WORKER_GPUS;
     workerNum = XLearningConfiguration.DEFAULT_XLEARNING_WORKER_NUM;
     psMemory = XLearningConfiguration.DEFAULT_XLEARNING_PS_MEMORY;
     psVCores = XLearningConfiguration.DEFAULT_XLEARNING_PS_VCORES;
@@ -83,9 +88,6 @@ class ClientArguments {
     boardReloadInterval = XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_RELOAD_INTERVAL;
     boardEnable = XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_ENABLE;
     boardLogDir = XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_LOG_DIR;
-    boardHistoryDir = XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_HISTORY_DIR;
-    boardModelPB = XLearningConfiguration.DEFAULT_XLEARNING_BOARD_MODELPB;
-    boardCacheTimeout = XLearningConfiguration.DEFAULT_XLEARNING_BOARD_CACHE_TIMEOUT;
     isRenameInputFile = XLearningConfiguration.DEFAULT_XLEARNING_INPUTFILE_RENAME;
     streamEpoch = XLearningConfiguration.DEFAULT_XLEARNING_STREAM_EPOCH;
     inputStreamShuffle = XLearningConfiguration.DEFAULT_XLEARNING_INPUT_STREAM_SHUFFLE;
@@ -109,6 +111,8 @@ class ClientArguments {
         "Amount of memory in MB to be requested to run worker");
     allOptions.addOption("workerCores", "worker-cores", true,
         "Amount of vcores to be requested to run worker");
+    allOptions.addOption("workerGpus", "worker-gpus", true,
+            "Amount of gpus to be requested to run worker");
     allOptions.addOption("workerNum", "worker-num", true,
         "No. of containers on which the worker needs to be executed");
 
@@ -146,11 +150,7 @@ class ClientArguments {
     allOptions.addOption("boardEnable", "board-enable", true,
         "if app type is tensorflow, enable to run tensorboard, default:true");
     allOptions.addOption("boardHistoryDir", "board-historydir", true,
-        "hdfs path for board event log");
-    allOptions.addOption("boardModelPB", "board-modelpb", true,
-        "if app type is not tensorflow, model pb for visualDL");
-    allOptions.addOption("boardCacheTimeout", "board-cacheTimeout", true,
-        "if app type is not tensorflow, visualDL memory cache timeout duration in seconds, default:20");
+        "if app type is tensorflow, hdfs path for tensorflow event log");
     allOptions.addOption("isRenameInputFile", "isRenameInputFile", true,
         "whether rename the inputFiles when download from hdfs");
 
@@ -251,6 +251,11 @@ class ClientArguments {
       workerVCores = Integer.parseInt(workerVCoresStr);
     }
 
+    if (cliParser.hasOption("worker-gpus")) {
+      String workerGpusStr = cliParser.getOptionValue("worker-gpus");
+      workerGpus = Integer.parseInt(workerGpusStr);
+    }
+    
     if (cliParser.hasOption("worker-num")) {
       String workerNumStr = cliParser.getOptionValue("worker-num");
       workerNum = Integer.parseInt(workerNumStr);
@@ -321,7 +326,7 @@ class ClientArguments {
       libJars = StringUtils.split(cliParser.getOptionValue("jars"), ",");
     }
 
-    if (cliParser.hasOption("userClasspathFirst")) {
+    if(cliParser.hasOption("userClasspathFirst")){
       String classpathFirst = cliParser.getOptionValue("userClasspathFirst");
       userClasspathFirst = Boolean.parseBoolean(classpathFirst);
     }
@@ -353,38 +358,28 @@ class ClientArguments {
       streamEpoch = Integer.parseInt(streamEpochStr);
     }
 
-    if (cliParser.hasOption("board-index")) {
-      String boardIndexStr = cliParser.getOptionValue("board-index");
-      boardIndex = Integer.parseInt(boardIndexStr);
+    if ("TENSORFLOW".equals(appType)) {
+      if (cliParser.hasOption("board-index")) {
+        String boardIndexStr = cliParser.getOptionValue("board-index");
+        boardIndex = Integer.parseInt(boardIndexStr);
+      }
     }
 
-    if (cliParser.hasOption("board-reloadinterval")) {
-      String boardReloadIntervalStr = cliParser.getOptionValue("board-reloadinterval");
-      boardReloadInterval = Integer.parseInt(boardReloadIntervalStr);
-    }
+    if ("TENSORFLOW".equals(appType)) {
+      if (cliParser.hasOption("board-reloadinterval")) {
+        String boardReloadIntervalStr = cliParser.getOptionValue("board-reloadinterval");
+        boardReloadInterval = Integer.parseInt(boardReloadIntervalStr);
+      }
 
-    if (cliParser.hasOption("board-logdir")) {
-      boardLogDir = cliParser.getOptionValue("board-logdir");
-    }
+      if (cliParser.hasOption("board-logdir")) {
+        boardLogDir = cliParser.getOptionValue("board-logdir");
+      }
 
-    if (cliParser.hasOption("board-historydir")) {
-      boardHistoryDir = cliParser.getOptionValue("board-historydir");
+      if (cliParser.hasOption("board-enable")) {
+        String boardEnableStr = cliParser.getOptionValue("board-enable");
+        boardEnable = Boolean.parseBoolean(boardEnableStr);
+      }
     }
-
-    if (cliParser.hasOption("board-enable")) {
-      String boardEnableStr = cliParser.getOptionValue("board-enable");
-      boardEnable = Boolean.parseBoolean(boardEnableStr);
-    }
-
-    if (cliParser.hasOption("board-modelpb")) {
-      boardModelPB = cliParser.getOptionValue("board-modelpb");
-    }
-
-    if (cliParser.hasOption("board-cacheTimeout")) {
-      String boardCacheTimeoutStr = cliParser.getOptionValue("board-cacheTimeout");
-      boardCacheTimeout = Integer.parseInt(boardCacheTimeoutStr);
-    }
-
     appMasterJar = JobConf.findContainingJar(ApplicationMaster.class);
     LOG.info("Application Master's jar is " + appMasterJar);
   }
