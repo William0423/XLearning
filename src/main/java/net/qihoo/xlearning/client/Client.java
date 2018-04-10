@@ -77,6 +77,7 @@ public class Client {
     conf.set(XLearningConfiguration.XLEARNING_AM_CORES, String.valueOf(clientArguments.amCores));
     conf.set(XLearningConfiguration.XLEARNING_WORKER_MEMORY, String.valueOf(clientArguments.workerMemory));
     conf.set(XLearningConfiguration.XLEARNING_WORKER_VCORES, String.valueOf(clientArguments.workerVCores));
+    conf.set(XLearningConfiguration.XLEARNING_WORKER_GPUS, String.valueOf(clientArguments.workerGpus));
     conf.set(XLearningConfiguration.XLEARNING_WORKER_NUM, String.valueOf(clientArguments.workerNum));
     conf.set(XLearningConfiguration.XLEARNING_PS_MEMORY, String.valueOf(clientArguments.psMemory));
     conf.set(XLearningConfiguration.XLEARNING_PS_VCORES, String.valueOf(clientArguments.psVCores));
@@ -87,11 +88,11 @@ public class Client {
     conf.set(XLearningConfiguration.XLEARNING_TF_BOARD_RELOAD_INTERVAL, String.valueOf(clientArguments.boardReloadInterval));
     conf.set(XLearningConfiguration.XLEARNING_TF_BOARD_ENABLE, String.valueOf(clientArguments.boardEnable));
     conf.set(XLearningConfiguration.XLEARNING_TF_BOARD_LOG_DIR, clientArguments.boardLogDir);
-    conf.set(XLearningConfiguration.XLEARNING_TF_BOARD_HISTORY_DIR, clientArguments.boardHistoryDir);
-    conf.set(XLearningConfiguration.XLEARNING_BOARD_MODELPB, clientArguments.boardModelPB);
-    conf.set(XLearningConfiguration.XLEARNING_BOARD_CACHE_TIMEOUT, String.valueOf(clientArguments.boardCacheTimeout));
+    // 输入策略
     conf.set(XLearningConfiguration.XLEARNING_INPUT_STRATEGY, clientArguments.inputStrategy);
+    // 输出策略
     conf.set(XLearningConfiguration.XLEARNING_OUTPUT_STRATEGY, clientArguments.outputStrategy);
+
     conf.setBoolean(XLearningConfiguration.XLEARNING_INPUTFILE_RENAME, clientArguments.isRenameInputFile);
     conf.setBoolean(XLearningConfiguration.XLEARNING_INPUT_STREAM_SHUFFLE, clientArguments.inputStreamShuffle);
     conf.setClass(XLearningConfiguration.XLEARNING_INPUTF0RMAT_CLASS, clientArguments.inputFormatClass, InputFormat.class);
@@ -110,6 +111,9 @@ public class Client {
     if ("TENSORFLOW".equals(clientArguments.appType)) {
       if (conf.getInt(XLearningConfiguration.XLEARNING_PS_NUM, XLearningConfiguration.DEFAULT_XLEARNING_PS_NUM) == 0) {
         conf.setBoolean(XLearningConfiguration.XLEARNING_TF_MODE_SINGLE, true);
+        if (conf.getInt(XLearningConfiguration.XLEARNING_WORKER_NUM, XLearningConfiguration.DEFAULT_XLEARNING_WORKER_NUM) == 1) {
+          conf.setInt(XLearningConfiguration.XLEARNING_TF_BOARD_WORKER_INDEX, 0);
+        }
       }
     }
 
@@ -119,18 +123,6 @@ public class Client {
       }
     }
 
-    if (conf.getInt(XLearningConfiguration.XLEARNING_WORKER_NUM, XLearningConfiguration.DEFAULT_XLEARNING_WORKER_NUM) == 1) {
-      conf.setInt(XLearningConfiguration.XLEARNING_TF_BOARD_WORKER_INDEX, 0);
-    }
-
-    if (conf.get(XLearningConfiguration.XLEARNING_TF_BOARD_LOG_DIR, XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_LOG_DIR).indexOf("/") == 0) {
-      Path tf_board_log_dir = new Path(conf.get("fs.defaultFS"), conf.get(XLearningConfiguration.XLEARNING_TF_BOARD_LOG_DIR));
-      conf.set(XLearningConfiguration.XLEARNING_TF_BOARD_LOG_DIR, tf_board_log_dir.toString());
-    }
-    if ((conf.get(XLearningConfiguration.XLEARNING_TF_BOARD_LOG_DIR).indexOf("hdfs") == 0) && (!"TENSORFLOW".equals(clientArguments.appType))) {
-      LOG.warn("VisualDL not support the hdfs path for logdir. Please ensure the logdir setting is right.");
-    }
-
     yarnClient = YarnClient.createYarnClient();
     yarnClient.init(conf);
     yarnClient.start();
@@ -138,6 +130,9 @@ public class Client {
     newAPP = yarnClient.createApplication();
   }
 
+  /**
+   * 欢迎界面
+   */
   private static void showWelcome() {
     System.err.println("Welcome to\n " +
         "\t__   ___                           _\n" +
@@ -226,6 +221,8 @@ public class Client {
     LOG.info("Max mem capability of resources in this cluster " + maxMem);
     int maxVCores = newApplication.getMaximumResourceCapability().getVirtualCores();
     LOG.info("Max vcores capability of resources in this cluster " + maxVCores);
+    int maxGpus = newApplication.getMaximumResourceCapability().getGPUs();
+    LOG.info("Max gpus capability of resources in this cluster " + maxGpus);
 
     int amMem = conf.getInt(XLearningConfiguration.XLEARNING_AM_MEMORY, XLearningConfiguration.DEFAULT_XLEARNING_AM_MEMORY);
     int amCores = conf.getInt(XLearningConfiguration.XLEARNING_AM_CORES, XLearningConfiguration.DEFAULT_XLEARNING_AM_CORES);
@@ -253,6 +250,7 @@ public class Client {
     int workerNum = conf.getInt(XLearningConfiguration.XLEARNING_WORKER_NUM, XLearningConfiguration.DEFAULT_XLEARNING_WORKER_NUM);
     int workerMemory = conf.getInt(XLearningConfiguration.XLEARNING_WORKER_MEMORY, XLearningConfiguration.DEFAULT_XLEARNING_WORKER_MEMORY);
     int workerVcores = conf.getInt(XLearningConfiguration.XLEARNING_WORKER_VCORES, XLearningConfiguration.DEFAULT_XLEARNING_WORKER_VCORES);
+    int workerGpus = conf.getInt(XLearningConfiguration.XLEARNING_WORKER_GPUS, XLearningConfiguration.DEFAULT_XLEARNING_WORKER_GPUS);
     if (workerNum < 1) {
       throw new IllegalArgumentException(
           "Invalid no. of worker specified, exiting."
@@ -280,6 +278,17 @@ public class Client {
     }
     LOG.info("Apply for worker vcores " + workerVcores);
 
+    if (workerGpus > maxGpus) {
+      throw new RequestOverLimitException("Worker gpus requested " + workerGpus +
+          " above the max threshold of yarn cluster " + maxGpus);
+    }
+    if (workerGpus < 0) {
+      throw new IllegalArgumentException(
+          "Invalid gpus specified for worker, exiting."
+              + "Specified gpus=" + workerGpus);
+    }
+    LOG.info("Apply for worker gpus " + workerGpus);
+    
     if ("TENSORFLOW".equals(clientArguments.appType) || "MXNET".equals(clientArguments.appType)) {
       Boolean single;
       if ("TENSORFLOW".equals(clientArguments.appType)) {
@@ -325,6 +334,7 @@ public class Client {
     }
   }
 
+  // 获取输入数据，输出结果数据
   private boolean submitAndMonitor() throws IOException, YarnException {
     if (clientArguments.inputs != null) {
       assignInput();
@@ -718,6 +728,7 @@ public class Client {
     boolean result = false;
     try {
       LOG.info("Initializing Client");
+      // 入口，参数初始化
       Client client = new Client(args);
       client.init();
       result = client.submitAndMonitor();
