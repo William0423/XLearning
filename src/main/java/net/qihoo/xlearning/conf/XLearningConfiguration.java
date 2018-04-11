@@ -33,9 +33,9 @@ public class XLearningConfiguration extends YarnConfiguration {
    * Configuration used in Client
    */
   public static final String DEFAULT_XLEARNING_APP_TYPE = "XLEARNING";
-
+  // 作业本地资源上传至HDFS路径
   public static final String XLEARNING_STAGING_DIR = "xlearning.staging.dir";
-
+  // 以上参数对应的默认值
   public static final String DEFAULT_XLEARNING_STAGING_DIR = "/tmp/XLearning/staging";
 
   public static final String XLEARNING_LOG_PULL_INTERVAL = "xlearning.log.pull.interval";
@@ -45,6 +45,10 @@ public class XLearningConfiguration extends YarnConfiguration {
   public static final String XLEARNING_USER_CLASSPATH_FIRST = "xlearning.user.classpath.first";
 
   public static final boolean DEFAULT_XLEARNING_USER_CLASSPATH_FIRST = true;
+
+  public static final String XLEARNING_REPORT_CONTAINER_STATUS = "xlearning.report.container.status";
+
+  public static final boolean DEFAULT_XLEARNING_REPORT_CONTAINER_STATUS = true;
 
   public static final String XLEARNING_AM_MEMORY = "xlearning.am.memory";
 
@@ -61,10 +65,6 @@ public class XLearningConfiguration extends YarnConfiguration {
   public static final String XLEARNING_WORKER_VCORES = "xlearning.worker.cores";
 
   public static final int DEFAULT_XLEARNING_WORKER_VCORES = 1;
-  
-  public static final String XLEARNING_WORKER_GPUS = "xlearning.worker.gpus";
-
-  public static final int DEFAULT_XLEARNING_WORKER_GPUS = 0;
 
   public static final String XLEARNING_WORKER_NUM = "xlearning.worker.num";
 
@@ -106,8 +106,9 @@ public class XLearningConfiguration extends YarnConfiguration {
 
   public static final String DEFAULT_XLEARNING_APP_QUEUE = "DEFAULT";
 
+  // 作业优先级，级别0-5，分别对应DEFAULT、VERY_LOW、LOW、NORMAL、HIGH、VERY_HIGH
   public static final String XLEARNING_APP_PRIORITY = "xlearning.app.priority";
-
+  // 默认为3级
   public static final int DEFAULT_XLEARNING_APP_PRIORITY = 3;
 
   public static final String XLEARNING_OUTPUT_LOCAL_DIR = "xlearning.output.local.dir";
@@ -142,21 +143,36 @@ public class XLearningConfiguration extends YarnConfiguration {
 
   public static final Boolean DEFAULT_XLEARNING_INPUT_STREAM_SHUFFLE = false;
 
+  public static final String XLEARNING_INPUTFORMAT_CACHESIZE_LIMIT= "xlearning.inputformat.cachesize.limit";
+
+  public static final int DEFAULT_XLEARNING_INPUTFORMAT_CACHESIZE_LIMIT = 100 * 1024;
+
+  public static final String XLEARNING_INPUTFORMAT_CACHE = "xlearning.inputformat.cache";
+
+  public static final boolean DEFAULT_XLEARNING_INPUTFORMAT_CACHE = false;
+
+  public static final String XLEARNING_INPUTFORMAT_CACHEFILE_NAME = "xlearning.inputformat.cachefile.name";
+
+  public static final String DEFAULT_XLEARNING_INPUTFORMAT_CACHEFILE_NAME = "inputformatCache.gz";
+
   public static final String XLEARNING_INTERREAULST_DIR = "xlearning.interresult.dir";
 
   public static final String DEFAULT_XLEARNING_INTERRESULT_DIR = "/interResult_";
 
   public static final String[] DEFAULT_XLEARNING_APPLICATION_CLASSPATH = {
-      "$HADOOP_CONF_DIR",
-      "$HADOOP_COMMON_HOME/share/hadoop/common/*",
-      "$HADOOP_COMMON_HOME/share/hadoop/common/lib/*",
-      "$HADOOP_HDFS_HOME/share/hadoop/hdfs/*",
-      "$HADOOP_HDFS_HOME/share/hadoop/hdfs/lib/*",
-      "$HADOOP_YARN_HOME/share/hadoop/yarn/*",
-      "$HADOOP_YARN_HOME/share/hadoop/yarn/lib/*",
-      "$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*",
-      "$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*"
+          "$HADOOP_CONF_DIR",
+          "$HADOOP_COMMON_HOME/share/hadoop/common/*",
+          "$HADOOP_COMMON_HOME/share/hadoop/common/lib/*",
+          "$HADOOP_HDFS_HOME/share/hadoop/hdfs/*",
+          "$HADOOP_HDFS_HOME/share/hadoop/hdfs/lib/*",
+          "$HADOOP_YARN_HOME/share/hadoop/yarn/*",
+          "$HADOOP_YARN_HOME/share/hadoop/yarn/lib/*",
+          "$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*",
+          "$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*"
   };
+
+  public static final String XLEARNING_TF_BOARD_PATH = "xlearning.tf.board.path";
+  public static final String DEFAULT_XLEARNING_TF_BOARD_PATH = "tensorboard";
   public static final String XLEARNING_TF_BOARD_WORKER_INDEX = "xlearning.tf.board.worker.index";
   public static final int DEFAULT_XLEARNING_TF_BOARD_WORKER_INDEX = 0;
   public static final String XLEARNING_TF_BOARD_RELOAD_INTERVAL = "xlearning.tf.board.reload.interval";
@@ -167,6 +183,12 @@ public class XLearningConfiguration extends YarnConfiguration {
   public static final Boolean DEFAULT_XLEARNING_TF_BOARD_ENABLE = true;
   public static final String XLEARNING_TF_BOARD_HISTORY_DIR = "xlearning.tf.board.history.dir";
   public static final String DEFAULT_XLEARNING_TF_BOARD_HISTORY_DIR = "/tmp/XLearning/eventLog";
+  public static final String XLEARNING_BOARD_PATH = "xlearning.board.path";
+  public static final String DEFAULT_XLEARNING_BOARD_PATH = "visualDL";
+  public static final String XLEARNING_BOARD_MODELPB = "xlearning.board.modelpb";
+  public static final String DEFAULT_XLEARNING_BOARD_MODELPB = "";
+  public static final String XLEARNING_BOARD_CACHE_TIMEOUT = "xlearning.board.cache.timeout";
+  public static final int DEFAULT_XLEARNING_BOARD_CACHE_TIMEOUT = 20;
   /**
    * Configuration used in ApplicationMaster
    */
@@ -185,6 +207,10 @@ public class XLearningConfiguration extends YarnConfiguration {
   public static final String XLEARNING_TASK_TIMEOUT = "xlearning.task.timeout";
 
   public static final int DEFAULT_XLEARNING_TASK_TIMEOUT = 5 * 60 * 1000;
+
+  public static final String XLEARNING_LOCALRESOURCE_TIMEOUT = "xlearning.localresource.timeout";
+
+  public static final int DEFAULT_XLEARNING_LOCALRESOURCE_TIMEOUT = 5 * 60 * 1000;
 
   public static final String XLEARNING_TASK_TIMEOUT_CHECK_INTERVAL_MS = "xlearning.task.timeout.check.interval";
 
@@ -298,7 +324,7 @@ public class XLearningConfiguration extends YarnConfiguration {
    */
   public static final String XLEARNING_HS_HTTP_POLICY = "xlearning.history.http.policy";
   public static String DEFAULT_XLEARNING_HS_HTTP_POLICY =
-      HttpConfig.Policy.HTTP_ONLY.name();
+          HttpConfig.Policy.HTTP_ONLY.name();
 
   /**
    * The kerberos principal to be used for spnego filter for history server
@@ -312,15 +338,15 @@ public class XLearningConfiguration extends YarnConfiguration {
 
   //Delegation token related keys
   public static final String DELEGATION_KEY_UPDATE_INTERVAL_KEY =
-      "xlearning.cluster.delegation.key.update-interval";
+          "xlearning.cluster.delegation.key.update-interval";
   public static final long DELEGATION_KEY_UPDATE_INTERVAL_DEFAULT =
-      24 * 60 * 60 * 1000; // 1 day
+          24 * 60 * 60 * 1000; // 1 day
   public static final String DELEGATION_TOKEN_RENEW_INTERVAL_KEY =
-      "xlearning.cluster.delegation.token.renew-interval";
+          "xlearning.cluster.delegation.token.renew-interval";
   public static final long DELEGATION_TOKEN_RENEW_INTERVAL_DEFAULT =
-      24 * 60 * 60 * 1000;  // 1 day
+          24 * 60 * 60 * 1000;  // 1 day
   public static final String DELEGATION_TOKEN_MAX_LIFETIME_KEY =
-      "xlearning.cluster.delegation.token.max-lifetime";
+          "xlearning.cluster.delegation.token.max-lifetime";
   public static final long DELEGATION_TOKEN_MAX_LIFETIME_DEFAULT =
-      24 * 60 * 60 * 1000; // 7 days
+          24 * 60 * 60 * 1000; // 7 days
 }
