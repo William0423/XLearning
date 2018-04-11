@@ -228,6 +228,7 @@ public class XLearningConfiguration extends YarnConfiguration {
 
   public static final int DEFAULT_XLEARNING_EXECUTENODE_LIMIT = 200;
 
+  // 作业结束后，是否删除资源上传HDFS路径内容
   public static final String XLEARNING_CLEANUP_ENABLE = "xlearning.cleanup.enable";
 
   public static final boolean DEFAULT_XLEARNING_CLEANUP_ENABLE = true;

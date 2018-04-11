@@ -43,6 +43,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 
+/**
+ *
+ */
 public class ApplicationMaster extends CompositeService {
 
   private static final Log LOG = LogFactory.getLog(ApplicationMaster.class);
@@ -115,6 +118,7 @@ public class ApplicationMaster extends CompositeService {
     super(ApplicationMaster.class.getName());
 
     conf = new XLearningConfiguration();
+    // String XLEARNING_JOB_CONFIGURATION = "core-site.xml";
     conf.addResource(new Path(XLearningConstants.XLEARNING_JOB_CONFIGURATION));
     System.setProperty(XLearningConstants.Environment.HADOOP_USER_NAME.toString(), conf.get("hadoop.job.ugi").split(",")[0]);
     outputInfos = new ArrayList<>();
@@ -122,6 +126,7 @@ public class ApplicationMaster extends CompositeService {
     containerId2InputInfo = new ConcurrentHashMap<>();
     inputFileSplits = null;
     containerId2InputSplit = new ConcurrentHashMap<>();
+    // AM向RM汇报状态时间间隔，单位为毫秒：默认1000
     statusUpdateInterval = conf.getInt(XLearningConfiguration.XLEARNING_STATUS_UPDATE_INTERVAL, XLearningConfiguration.DEFAULT_XLEARNING_STATUS_PULL_INTERVAL);
     applicationAttemptID = Records.newRecord(ApplicationAttemptId.class);
     applicationMessageQueue = new LinkedBlockingQueue<>(
@@ -235,6 +240,7 @@ public class ApplicationMaster extends CompositeService {
   private void init() {
     appendMessage(new Message(LogType.STDERR, "ApplicationMaster starting services"));
 
+    // RM和NM消息的异步处理：
     this.rmCallbackHandler = new RMCallbackHandler();
     this.amrmAsync = AMRMClientAsync.createAMRMClientAsync(1000, rmCallbackHandler);
     this.amrmAsync.init(conf);
@@ -243,12 +249,14 @@ public class ApplicationMaster extends CompositeService {
     this.nmAsync = NMClientAsync.createNMClientAsync(nmAsyncHandler);
     this.nmAsync.init(conf);
 
+    // 添加服务
     addService(this.amrmAsync);
     addService(this.nmAsync);
     addService(this.messageService);
     addService(this.webService);
     addService(this.containerListener);
     try {
+      // 启动服务
       super.serviceStart();
     } catch (Exception e) {
       throw new RuntimeException("Error start application services!", e);
@@ -266,6 +274,7 @@ public class ApplicationMaster extends CompositeService {
       public void run() {
         System.clearProperty(XLearningConstants.Environment.HADOOP_USER_NAME.toString());
         YarnConfiguration xlearningConf = new YarnConfiguration();
+        // 作业结束后，是否删除资源上传HDFS路径内容
         if (xlearningConf.getBoolean(XLearningConfiguration.XLEARNING_CLEANUP_ENABLE, XLearningConfiguration.DEFAULT_XLEARNING_CLEANUP_ENABLE)) {
           Path stagingDir = new Path(envs.get(XLearningConstants.Environment.XLEARNING_STAGING_LOCATION.toString()));
           try {
@@ -620,6 +629,7 @@ public class ApplicationMaster extends CompositeService {
     workerContainerRequest = new ContainerRequest(workerCapability, null, null, priority);
     LOG.info("Create worker container request: " + workerContainerRequest.toString());
 
+    // 如果是tensorflow，且为非单机模式
     if (("TENSORFLOW".equals(xlearningAppType) && !single) || ("MXNET".equals(xlearningAppType) && !singleMx)) {
       Resource psCapability = Records.newRecord(Resource.class);
       psCapability.setMemory(psMemory);
@@ -726,6 +736,7 @@ public class ApplicationMaster extends CompositeService {
     }
   }
 
+  // 设置每个Container的运行环境，xlearningAppType的类型不同，运行的环境也有差别
   private Map<String, String> buildContainerEnv(String role) {
     LOG.info("Setting environments for the Container");
     Map<String, String> containerEnv = new HashMap<>();
@@ -733,6 +744,7 @@ public class ApplicationMaster extends CompositeService {
     containerEnv.put(XLearningConstants.Environment.XLEARNING_TF_ROLE.toString(), role);
     containerEnv.put(XLearningConstants.Environment.XLEARNING_EXEC_CMD.toString(), xlearningCommand);
     containerEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), xlearningAppType);
+
     if (xlearningAppType.equals("MXNET") && !singleMx) {
       containerEnv.put(XLearningConstants.Environment.XLEARNING_MXNET_WORKER_NUM.toString(), String.valueOf(workerNum));
       containerEnv.put(XLearningConstants.Environment.XLEARNING_MXNET_SERVER_NUM.toString(), String.valueOf(psNum));
@@ -858,6 +870,7 @@ public class ApplicationMaster extends CompositeService {
       buildInputFileStatus();
     }
 
+    // 如果是tensorflow或者是MXNET，需要打印数据
     if ("TENSORFLOW".equals(xlearningAppType) || "MXNET".equals(xlearningAppType)) {
       this.appendMessage("XLearning application needs " + workerNum + " worker and "
           + psNum + " ps  containers in fact", true);
@@ -1140,9 +1153,12 @@ public class ApplicationMaster extends CompositeService {
     }
     buildOutputLocations();
     buildContainerLocalResource();
+
     Map<String, String> workerContainerEnv = buildContainerEnv(XLearningConstants.WORKER);
     Map<String, String> psContainerEnv = buildContainerEnv(XLearningConstants.PS);
+
     List<String> workerContainerLaunchCommands = buildContainerLaunchCommand(workerMemory);
+    // 每个Container对应的进程指令启动指令
     List<String> psContainerLaunchCommands = buildContainerLaunchCommand(psMemory);
 
     LOG.info("Launching containers");
@@ -1452,10 +1468,16 @@ public class ApplicationMaster extends CompositeService {
       startSavingModel = flag;
     }
 
+
+
     @Override
     public Boolean getLastSavingStatus() {
       return lastSavingStatus;
     }
+
+
+
+
 
     @Override
     public List<Long> getModelSavingList() {
@@ -1463,6 +1485,7 @@ public class ApplicationMaster extends CompositeService {
     }
 
   }
+
 
   /**
    * @param args Command line args
@@ -1472,6 +1495,7 @@ public class ApplicationMaster extends CompositeService {
     try {
       appMaster = new ApplicationMaster();
       appMaster.init();
+      // 启动ApplicationMaster
       if (appMaster.run()) {
         LOG.info("Application completed successfully.");
         System.exit(0);

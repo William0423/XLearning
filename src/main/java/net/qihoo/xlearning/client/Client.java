@@ -131,11 +131,15 @@ public class Client {
       LOG.warn("VisualDL not support the hdfs path for logdir. Please ensure the logdir setting is right.");
     }
 
-    yarnClient = YarnClient.createYarnClient();
-    yarnClient.init(conf);
-    yarnClient.start();
-    LOG.info("Requesting a new application from cluster with " + yarnClient.getYarnClusterMetrics().getNumNodeManagers() + " NodeManagers");
-    newAPP = yarnClient.createApplication();
+      // hadoop Yarn api编程
+      yarnClient = YarnClient.createYarnClient();
+      // 构造一个Yarn客户端句柄并初始化
+      yarnClient.init(conf);
+      // 启动Yarn
+      yarnClient.start();
+      LOG.info("Requesting a new application from cluster with " + yarnClient.getYarnClusterMetrics().getNumNodeManagers() + " NodeManagers");
+      // 获取一个新的application id
+      newAPP = yarnClient.createApplication();
   }
 
   private static void showWelcome() {
@@ -391,10 +395,19 @@ public class Client {
 
     checkArguments(conf, newAppResponse);
 
+    // 提交到AM的实例对象：负责输入数据分片、启动及管理Container、执行日志保存等；
     ApplicationSubmissionContext applicationContext = newAPP.getApplicationSubmissionContext();
+    /**
+    * 根据官网内容：
+    * The main crux of a client is to setup the ApplicationSubmissionContext which defines all the information needed by the RM to launch the AM. A client needs to set the following into the context:
+    * Application info: id, name
+    * Queue, priority info: Queue to which the application will be submitted, the priority to be assigned for the application.
+    * User: The user submitting the application
+    */
     applicationContext.setApplicationId(applicationId);
     applicationContext.setApplicationName(clientArguments.appName);
     applicationContext.setApplicationType(clientArguments.appType);
+
     Path appJarSrc = new Path(clientArguments.appMasterJar);
     Path appJarDst = Utilities
             .getRemotePath(conf, applicationId, XLearningConstants.XLEARNING_APPLICATION_JAR);
@@ -405,9 +418,11 @@ public class Client {
             Utilities.createApplicationResource(dfs, appJarDst, LocalResourceType.FILE));
 
     LOG.info("Building environments for the application master");
+      // 应用的环境设置
     Map<String, String> appMasterEnv = new HashMap<>();
     if (clientArguments.appType != null && !clientArguments.appType.equals("")) {
-      appMasterEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), clientArguments.appType);
+        // 设置需要运行的机器学习框架
+        appMasterEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), clientArguments.appType);
     } else {
       appMasterEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), XLearningConfiguration.DEFAULT_XLEARNING_APP_TYPE.toUpperCase());
     }
@@ -425,7 +440,7 @@ public class Client {
       }
       appMasterEnv.put(XLearningConstants.Environment.XLEARNING_FILES_LOCATION.toString(),
               appFilesRemotePath.deleteCharAt(appFilesRemotePath.length() - 1).toString());
-
+        // 使用MXNEXT框架，并且满足不是单机模式：
       if (clientArguments.appType.equals("MXNET") && !conf.getBoolean(XLearningConfiguration.XLEARNING_MXNET_MODE_SINGLE, XLearningConfiguration.DEFAULT_XLEARNING_MXNET_MODE_SINGLE)) {
         String appFilesRemoteLocation = appMasterEnv.get(XLearningConstants.Environment.XLEARNING_FILES_LOCATION.toString());
         String[] xlearningFiles = StringUtils.split(appFilesRemoteLocation, ",");
@@ -438,7 +453,9 @@ public class Client {
         }
       }
     }
-
+      /**
+       * 为什么要把lib种的jar传到hdfs
+       */
     String libJarsClassPath = "";
     if (clientArguments.libJars != null) {
       Path[] jarFilesDst = new Path[clientArguments.libJars.length];
@@ -608,6 +625,7 @@ public class Client {
     LOG.info("Building application master launch command");
     List<String> appMasterArgs = new ArrayList<>(20);
     appMasterArgs.add("${JAVA_HOME}" + "/bin/java");
+      // 设置默认的最大堆和最小堆，两个值相同
     appMasterArgs.add("-Xms" + conf.getInt(XLearningConfiguration.XLEARNING_AM_MEMORY, XLearningConfiguration.DEFAULT_XLEARNING_AM_MEMORY) + "m");
     appMasterArgs.add("-Xmx" + conf.getInt(XLearningConfiguration.XLEARNING_AM_MEMORY, XLearningConfiguration.DEFAULT_XLEARNING_AM_MEMORY) + "m");
     appMasterArgs.add(ApplicationMaster.class.getName());
@@ -658,6 +676,7 @@ public class Client {
 
   private boolean waitCompleted() throws IOException, YarnException {
     ApplicationReport applicationReport = getApplicationReport(applicationId, yarnClient);
+    // ApplicationReport#getTrackingUrl 设置一个客户端可以监控进度的跟踪url。
     LOG.info("The url to track the job: " + applicationReport.getTrackingUrl());
     while (true) {
       assert (applicationReport != null);

@@ -102,6 +102,7 @@ public class ApplicationContainerListener extends AbstractService implements App
     this.clock = new SystemClock();
     this.runningContainers = new ConcurrentHashMap<>();
     this.containerTimeOut = conf.getInt(XLearningConfiguration.XLEARNING_TASK_TIMEOUT, XLearningConfiguration.DEFAULT_XLEARNING_TASK_TIMEOUT);
+    // 消息队列大小限制，单位为字节: 1000
     this.localResourceTimeOut = conf.getInt(XLearningConfiguration.XLEARNING_LOCALRESOURCE_TIMEOUT, XLearningConfiguration.DEFAULT_XLEARNING_LOCALRESOURCE_TIMEOUT);
     this.monitorInterval = conf.getInt(XLearningConfiguration.XLEARNING_TASK_TIMEOUT_CHECK_INTERVAL_MS, XLearningConfiguration.DEFAULT_XLEARNING_TASK_TIMEOUT_CHECK_INTERVAL_MS);
     this.isXLearningTrainFinished = false;
