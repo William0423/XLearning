@@ -238,6 +238,7 @@ public class ApplicationMaster extends CompositeService {
   }
 
   private void init() {
+    // 26\\ ApplicationMaster开始启动
     appendMessage(new Message(LogType.STDERR, "ApplicationMaster starting services"));
 
     // RM和NM消息的异步处理：
@@ -487,6 +488,11 @@ public class ApplicationMaster extends CompositeService {
     }
   }
 
+  /**
+   * 在AM中，根据“split size”对所提交脚本中所指定的输入数据进行分片，并均匀的分配给不同Worker。在Worker中，
+   * 根据所分配到的分片信息，以用户指定的InputFormat类读取数据分片，并通过管道将数据传递给Worker中的执行程序进程。
+   * @throws IOException
+   */
   public void buildInputStreamFileStatus() throws IOException {
     String xlearningInputs = envs.get(XLearningConstants.Environment.XLEARNING_INPUTS.toString());
     if (StringUtils.isBlank(xlearningInputs)) {
@@ -864,9 +870,12 @@ public class ApplicationMaster extends CompositeService {
     LOG.info("ApplicationMaster Starting ...");
 
     registerApplicationMaster();
+
     if (conf.get(XLearningConfiguration.XLEARNING_INPUT_STRATEGY, XLearningConfiguration.DEFAULT_XLEARNING_INPUT_STRATEGY).equals("STREAM")) {
+      // 流处理的方式
       buildInputStreamFileStatus();
     } else {
+      //
       buildInputFileStatus();
     }
 
@@ -1269,11 +1278,13 @@ public class ApplicationMaster extends CompositeService {
           float finalProgress = total / workerContainers.size();
           DecimalFormat df = new DecimalFormat("0.00");
           df.setRoundingMode(RoundingMode.HALF_UP);
+          // 27\\ 进度信息
           this.appendMessage("reporter progress:" + df.format(finalProgress * 100) + "%", false);
           rmCallbackHandler.setProgress(finalProgress);
         }
         Utilities.sleep(statusUpdateInterval);
       }
+      // \\\\\\\\\\\训练完成
       LOG.info("Train completed");
       containerListener.setTrainFinished();
 

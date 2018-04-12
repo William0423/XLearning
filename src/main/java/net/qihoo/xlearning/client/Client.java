@@ -57,12 +57,16 @@ public class Client {
   private Client(String[] args) throws IOException, ParseException, ClassNotFoundException {
     this.conf = new XLearningConfiguration();
     this.dfs = FileSystem.get(conf);
+    // 进行参数的初始化读入
     this.clientArguments = new ClientArguments(args);
+
     this.isRunning = new AtomicBoolean(false);
     this.appFilesRemotePath = new StringBuffer(1000);
     this.appLibJarsRemotePath = new StringBuffer(1000);
+
     this.inputPaths = new ConcurrentHashMap<>();
     this.outputPaths = new ConcurrentHashMap<>();
+
     JOB_FILE_PERMISSION = FsPermission.createImmutable((short) 0644);
   }
 
@@ -137,6 +141,7 @@ public class Client {
       yarnClient.init(conf);
       // 启动Yarn
       yarnClient.start();
+      // 4\\ : 需要的NM数量
       LOG.info("Requesting a new application from cluster with " + yarnClient.getYarnClusterMetrics().getNumNodeManagers() + " NodeManagers");
       // 获取一个新的application id
       newAPP = yarnClient.createApplication();
@@ -182,6 +187,7 @@ public class Client {
       } else {
         outputPaths.put(outputLocal, outputRemote);
       }
+      // 6\\打印本地或者hdfs的输出路径
       LOG.info("Local output path: " + outputLocal + " and remote output path: " + outputRemote);
     }
   }
@@ -189,23 +195,28 @@ public class Client {
   @SuppressWarnings("unchecked")
   private void assignInput() throws IOException {
     Enumeration<String> inputs = (Enumeration<String>) clientArguments.inputs.propertyNames();
+
     while (inputs.hasMoreElements()) {
       String inputRemote = inputs.nextElement();
       String inputLocal = clientArguments.inputs.getProperty(inputRemote);
       if (inputLocal.equals("true")) {
         inputLocal = "input";
       }
+
       for (String pathdir : StringUtils.split(inputRemote, ",")) {
         Path path = new Path(pathdir);
         if (!path.getFileSystem(conf).exists(path)) {
           throw new IOException("Input path " + path + " not existed!");
         }
       }
+
       if (inputPaths.containsKey(inputLocal)) {
         inputPaths.put(inputLocal, inputPaths.get(inputLocal) + "," + inputRemote);
       } else {
         inputPaths.put(inputLocal, inputRemote);
       }
+
+      // 5\\打印本地input的路径，或者打印hdfs的input路径
       LOG.info("Local input path: " + inputLocal + " and remote input path: " + inputRemote);
     }
   }
@@ -227,12 +238,15 @@ public class Client {
 
   private void checkArguments(XLearningConfiguration conf, GetNewApplicationResponse newApplication) {
     int maxMem = newApplication.getMaximumResourceCapability().getMemory();
+    // 8\\
     LOG.info("Max mem capability of resources in this cluster " + maxMem);
     int maxVCores = newApplication.getMaximumResourceCapability().getVirtualCores();
+    // 9\\ 最大核数量
     LOG.info("Max vcores capability of resources in this cluster " + maxVCores);
 
     int amMem = conf.getInt(XLearningConfiguration.XLEARNING_AM_MEMORY, XLearningConfiguration.DEFAULT_XLEARNING_AM_MEMORY);
     int amCores = conf.getInt(XLearningConfiguration.XLEARNING_AM_CORES, XLearningConfiguration.DEFAULT_XLEARNING_AM_CORES);
+    // 如果一台am需要的内存大于集群需要的总内存，抛出错误。
     if (amMem > maxMem) {
       throw new RequestOverLimitException("AM memory requested " + amMem +
               " above the max threshold of yarn cluster " + maxMem);
@@ -242,7 +256,9 @@ public class Client {
               "Invalid memory specified for application master, exiting."
                       + " Specified memory=" + amMem);
     }
+    // 10\\
     LOG.info("Apply for am Memory " + amMem + "M");
+
     if (amCores > maxVCores) {
       throw new RequestOverLimitException("am vcores requested " + amCores +
               " above the max threshold of yarn cluster " + maxVCores);
@@ -252,6 +268,8 @@ public class Client {
               "Invalid vcores specified for am, exiting."
                       + "Specified vcores=" + amCores);
     }
+
+    // 11\\
     LOG.info("Apply for am vcores " + amCores);
 
     int workerNum = conf.getInt(XLearningConfiguration.XLEARNING_WORKER_NUM, XLearningConfiguration.DEFAULT_XLEARNING_WORKER_NUM);
@@ -262,7 +280,10 @@ public class Client {
               "Invalid no. of worker specified, exiting."
                       + " Specified container number=" + workerNum);
     }
+    // 12\\
     LOG.info("Apply for worker number " + workerNum);
+
+
     if (workerMemory > maxMem) {
       throw new RequestOverLimitException("Worker memory requested " + workerMemory +
               " above the max threshold of yarn cluster " + maxMem);
@@ -272,7 +293,10 @@ public class Client {
               "Invalid memory specified for worker, exiting."
                       + "Specified memory=" + workerMemory);
     }
+    // 13\\
     LOG.info("Apply for worker Memory " + workerMemory + "M");
+
+
     if (workerVcores > maxVCores) {
       throw new RequestOverLimitException("Worker vcores requested " + workerVcores +
               " above the max threshold of yarn cluster " + maxVCores);
@@ -282,6 +306,7 @@ public class Client {
               "Invalid vcores specified for worker, exiting."
                       + "Specified vcores=" + workerVcores);
     }
+    // 14\\
     LOG.info("Apply for worker vcores " + workerVcores);
 
     if ("TENSORFLOW".equals(clientArguments.appType) || "MXNET".equals(clientArguments.appType)) {
@@ -378,8 +403,12 @@ public class Client {
       }
     }
 
+    /**
+     * 问题：在demo的视频中，这个新建的app，在集群中需要的mem capability大小为40960，这个值是从哪里来的？
+     */
     GetNewApplicationResponse newAppResponse = newAPP.getNewApplicationResponse();
     applicationId = newAppResponse.getApplicationId();
+    // 7\\打印新创建app对应的id，比如：application_1513044596696_001
     LOG.info("Got new Application: " + applicationId.toString());
 
     Path jobConfPath = Utilities
@@ -411,12 +440,14 @@ public class Client {
     Path appJarSrc = new Path(clientArguments.appMasterJar);
     Path appJarDst = Utilities
             .getRemotePath(conf, applicationId, XLearningConstants.XLEARNING_APPLICATION_JAR);
+    // 15\\把XLearning的jar包复制到hdfs，并且重命名为AppMaster.jar
     LOG.info("Copying " + appJarSrc + " to remote path " + appJarDst.toString());
     dfs.copyFromLocalFile(false, true, appJarSrc, appJarDst);
 
     localResources.put(XLearningConstants.XLEARNING_APPLICATION_JAR,
             Utilities.createApplicationResource(dfs, appJarDst, LocalResourceType.FILE));
 
+    // 16\\开始为application master设置building环境
     LOG.info("Building environments for the application master");
       // 应用的环境设置
     Map<String, String> appMasterEnv = new HashMap<>();
@@ -428,12 +459,14 @@ public class Client {
     }
     if (clientArguments.xlearningFiles != null) {
       Path[] xlearningFilesDst = new Path[clientArguments.xlearningFiles.length];
+      // 17\\开始将需要用到的模型代码文件上传到hdfs
       LOG.info("Copy xlearning files from local filesystem to remote.");
       for (int i = 0; i < clientArguments.xlearningFiles.length; i++) {
         assert (!clientArguments.xlearningFiles[i].isEmpty());
         Path xlearningFilesSrc = new Path(clientArguments.xlearningFiles[i]);
         xlearningFilesDst[i] = Utilities.getRemotePath(
                 conf, applicationId, new Path(clientArguments.xlearningFiles[i]).getName());
+        // 18\\此处遍历打印已经上传到hdfs的模型代码文件，比如demo.py，dataDeal.py
         LOG.info("Copying " + clientArguments.xlearningFiles[i] + " to remote path " + xlearningFilesDst[i].toString());
         dfs.copyFromLocalFile(false, true, xlearningFilesSrc, xlearningFilesDst[i]);
         appFilesRemotePath.append(xlearningFilesDst[i].toUri().toString()).append(",");
@@ -622,6 +655,7 @@ public class Client {
       appMasterEnv.put(XLearningConstants.Environment.USER_PATH.toString(), clientArguments.userPath);
     }
 
+    // 19\\创建运行训练模型的java命令
     LOG.info("Building application master launch command");
     List<String> appMasterArgs = new ArrayList<>(20);
     appMasterArgs.add("${JAVA_HOME}" + "/bin/java");
@@ -639,6 +673,7 @@ public class Client {
       command.append(arg).append(" ");
     }
 
+    // 20\\
     LOG.info("Application master launch command: " + command.toString());
     List<String> appMasterLaunchcommands = new ArrayList<>();
     appMasterLaunchcommands.add(command.toString());
@@ -658,10 +693,13 @@ public class Client {
     applicationContext.setQueue(conf.get(XLearningConfiguration.XLEARNING_APP_QUEUE, XLearningConfiguration.DEFAULT_XLEARNING_APP_QUEUE));
 
     try {
+      // 21\\
       LOG.info("Submitting application to ResourceManager");
+      // 22\\内部有一个类会输出一句信息
       applicationId = yarnClient.submitApplication(applicationContext);
       isRunning.set(applicationId != null);
       if (isRunning.get()) {
+        // 23\\
         LOG.info("Application submitAndMonitor succeed");
       } else {
         throw new RuntimeException("Application submitAndMonitor failed!  Application Not Running.");
@@ -676,7 +714,7 @@ public class Client {
 
   private boolean waitCompleted() throws IOException, YarnException {
     ApplicationReport applicationReport = getApplicationReport(applicationId, yarnClient);
-    // ApplicationReport#getTrackingUrl 设置一个客户端可以监控进度的跟踪url。
+    // 24\\ ApplicationReport#getTrackingUrl 设置一个客户端可以监控进度的跟踪url。
     LOG.info("The url to track the job: " + applicationReport.getTrackingUrl());
     while (true) {
       assert (applicationReport != null);
@@ -695,6 +733,7 @@ public class Client {
         if (FinalApplicationStatus.SUCCEEDED == finalApplicationStatus) {
           return true;
         } else {
+          // 25\\ 输出的样例： “Application report for application_1513044596696_001 (state: ACCEPTED)”
           LOG.info("Application has completed failed with YarnApplicationState=" + yarnApplicationState.toString() +
                   " and FinalApplicationStatus=" + finalApplicationStatus.toString());
           return false;
@@ -703,6 +742,7 @@ public class Client {
               || YarnApplicationState.FAILED == yarnApplicationState) {
         xlearningClient = null;
         isRunning.set(false);
+        //
         LOG.info("Application has completed with YarnApplicationState=" + yarnApplicationState.toString() +
                 " and FinalApplicationStatus=" + finalApplicationStatus.toString());
         return false;
@@ -736,6 +776,7 @@ public class Client {
     showWelcome();
     boolean result = false;
     try {
+      // 1\\
       LOG.info("Initializing Client");
       Client client = new Client(args);
       client.init();

@@ -36,8 +36,10 @@ class ClientArguments {
   String inputStrategy;
   // 输出文件加载策略，目前主要有DOWNLOAD、STREAM
   String outputStrategy;
-  // 输入
+  // 通过它可以查看怎么使用值了。
   Properties inputs;
+
+  // 输出
   Properties outputs;
   String xlearningCacheFiles;
   String xlearningCacheArchives;
@@ -98,7 +100,11 @@ class ClientArguments {
     inputStreamShuffle = XLearningConfiguration.DEFAULT_XLEARNING_INPUT_STREAM_SHUFFLE;
     inputFormatClass = XLearningConfiguration.DEFAULT_XLEARNING_INPUTF0RMAT_CLASS;
     outputFormatClass = XLearningConfiguration.DEFAULT_XLEARNING_OUTPUTF0RMAT_CLASS;
+
+    // 输入的策略
     inputStrategy = XLearningConfiguration.DEFAULT_XLEARNING_INPUT_STRATEGY.toUpperCase();
+
+    // 输出的策略
     outputStrategy = XLearningConfiguration.DEFAULT_XLEARNING_OUTPUT_STRATEGY.toUpperCase();
 
     allOptions = new Options();
@@ -132,6 +138,7 @@ class ClientArguments {
             "Location of the XLearning lib jars used in container");
 
     allOptions.addOption("launchCmd", "launch-cmd", true, "Cmd for XLearning program");
+
     allOptions.addOption("userPath", "user-path", true,
             "add the user set PATH");
     allOptions.addOption("cacheFile", "cacheFile", true,
@@ -189,12 +196,9 @@ class ClientArguments {
 
     OptionBuilder.withArgName("property#value");
     OptionBuilder.hasArgs(Integer.MAX_VALUE);
-    OptionBuilder
-            .withValueSeparator('#');
-    OptionBuilder
-            .withDescription("dfs location,representing the source data of XLearning");
-    Option property = OptionBuilder
-            .create("input");
+    OptionBuilder.withValueSeparator('#');
+    OptionBuilder.withDescription("dfs location,representing the source data of XLearning");
+    Option property = OptionBuilder.create("input");
     allOptions.addOption(property);
 
     OptionBuilder.withArgName("property#value");
@@ -393,6 +397,7 @@ class ClientArguments {
     }
 
     appMasterJar = JobConf.findContainingJar(ApplicationMaster.class);
+    // 2\\
     LOG.info("Application Master's jar is " + appMasterJar);
   }
 
