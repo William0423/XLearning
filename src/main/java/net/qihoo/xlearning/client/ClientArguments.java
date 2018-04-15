@@ -39,7 +39,7 @@ class ClientArguments {
   // 通过它可以查看怎么使用值了。
   Properties inputs;
 
-  // 输出
+  // 输出：输入文件路径，格式为 HDFS路径#本地文件夹名称
   Properties outputs;
   String xlearningCacheFiles;
   String xlearningCacheArchives;
@@ -194,6 +194,7 @@ class ClientArguments {
             .create("conf");
     allOptions.addOption(conf);
 
+    //  -input <property#value>    dfs location,representing the source data of XLearning
     OptionBuilder.withArgName("property#value");
     OptionBuilder.hasArgs(Integer.MAX_VALUE);
     OptionBuilder.withValueSeparator('#');
@@ -201,17 +202,22 @@ class ClientArguments {
     Option property = OptionBuilder.create("input");
     allOptions.addOption(property);
 
+    //  -output <property#value>   dfs location,representing the XLearning result
     OptionBuilder.withArgName("property#value");
     OptionBuilder.hasArgs(Integer.MAX_VALUE);
-    OptionBuilder
-            .withValueSeparator('#');
-    OptionBuilder
-            .withDescription("dfs location,representing the XLearning result");
-    Option output = OptionBuilder
-            .create("output");
+    OptionBuilder.withValueSeparator('#');
+    OptionBuilder.withDescription("dfs location,representing the XLearning result");
+    Option output = OptionBuilder.create("output");
     allOptions.addOption(output);
   }
 
+  /**
+   * allOptions为
+   * @param args
+   * @throws ParseException
+   * @throws IOException
+   * @throws ClassNotFoundException
+   */
   private void cliParser(String[] args) throws ParseException, IOException, ClassNotFoundException {
     CommandLine cliParser = new BasicParser().parse(allOptions, args);
     if (cliParser.getOptions().length == 0 || cliParser.hasOption("help")) {

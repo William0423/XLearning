@@ -57,7 +57,7 @@ public class Client {
   private Client(String[] args) throws IOException, ParseException, ClassNotFoundException {
     this.conf = new XLearningConfiguration();
     this.dfs = FileSystem.get(conf);
-    // 进行参数的初始化读入
+    // 对命令行参数进行解析：https://commons.apache.org/proper/commons-cli/usage.html
     this.clientArguments = new ClientArguments(args);
 
     this.isRunning = new AtomicBoolean(false);
@@ -198,6 +198,8 @@ public class Client {
 
     while (inputs.hasMoreElements()) {
       String inputRemote = inputs.nextElement();
+
+      // 远程文件路径和本地文件路径是key-value的形式
       String inputLocal = clientArguments.inputs.getProperty(inputRemote);
       if (inputLocal.equals("true")) {
         inputLocal = "input";
@@ -210,13 +212,14 @@ public class Client {
         }
       }
 
+      // HashMap的形式，本地文件名相同，以逗号作分隔符追加对应的远程文件名
       if (inputPaths.containsKey(inputLocal)) {
         inputPaths.put(inputLocal, inputPaths.get(inputLocal) + "," + inputRemote);
       } else {
         inputPaths.put(inputLocal, inputRemote);
       }
 
-      // 5\\打印本地input的路径，或者打印hdfs的input路径
+      // 5\\打印本地input的路径，或者打印hdfs的input路径："Local input path: data and remote input path: /tmp/data/tensorflow
       LOG.info("Local input path: " + inputLocal + " and remote input path: " + inputRemote);
     }
   }
@@ -424,7 +427,7 @@ public class Client {
 
     checkArguments(conf, newAppResponse);
 
-    // 提交到AM的实例对象：负责输入数据分片、启动及管理Container、执行日志保存等；
+    // 创建AM的实例对象：负责输入数据分片、启动及管理Container、执行日志保存等；
     ApplicationSubmissionContext applicationContext = newAPP.getApplicationSubmissionContext();
     /**
     * 根据官网内容：
@@ -449,8 +452,9 @@ public class Client {
 
     // 16\\开始为application master设置building环境
     LOG.info("Building environments for the application master");
-      // 应用的环境设置
+      // 应用的环境设置，包括训练数据存储的路径等等，
     Map<String, String> appMasterEnv = new HashMap<>();
+
     if (clientArguments.appType != null && !clientArguments.appType.equals("")) {
         // 设置需要运行的机器学习框架
         appMasterEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), clientArguments.appType);
@@ -469,10 +473,13 @@ public class Client {
         // 18\\此处遍历打印已经上传到hdfs的模型代码文件，比如demo.py，dataDeal.py
         LOG.info("Copying " + clientArguments.xlearningFiles[i] + " to remote path " + xlearningFilesDst[i].toString());
         dfs.copyFromLocalFile(false, true, xlearningFilesSrc, xlearningFilesDst[i]);
+
         appFilesRemotePath.append(xlearningFilesDst[i].toUri().toString()).append(",");
+
       }
       appMasterEnv.put(XLearningConstants.Environment.XLEARNING_FILES_LOCATION.toString(),
               appFilesRemotePath.deleteCharAt(appFilesRemotePath.length() - 1).toString());
+
         // 使用MXNEXT框架，并且满足不是单机模式：
       if (clientArguments.appType.equals("MXNET") && !conf.getBoolean(XLearningConfiguration.XLEARNING_MXNET_MODE_SINGLE, XLearningConfiguration.DEFAULT_XLEARNING_MXNET_MODE_SINGLE)) {
         String appFilesRemoteLocation = appMasterEnv.get(XLearningConstants.Environment.XLEARNING_FILES_LOCATION.toString());
@@ -621,9 +628,13 @@ public class Client {
       }
     }
 
+    /**
+     * 问题：在哪里使用这些属性？
+     */
     Set<String> inputPathKeys = inputPaths.keySet();
     StringBuilder inputLocation = new StringBuilder(1000);
     if (inputPathKeys.size() > 0) {
+      // for循环重新整理数据的远程文件夹和本地文件夹，类似于：/tmp/t11,/tmp/t12#train|/tmp/t2#test
       for (String key : inputPathKeys) {
         inputLocation.append(inputPaths.get(key)).
                 append("#").
@@ -631,6 +642,7 @@ public class Client {
                 append("|");
       }
       appMasterEnv.put(XLearningConstants.Environment.XLEARNING_INPUTS.toString(),
+              // 删除字符串最后一个字符，得到这个字符串
               inputLocation.deleteCharAt(inputLocation.length() - 1).toString());
     }
 
@@ -655,7 +667,8 @@ public class Client {
       appMasterEnv.put(XLearningConstants.Environment.USER_PATH.toString(), clientArguments.userPath);
     }
 
-    // 19\\创建运行训练模型的java命令
+    // 19\\创建运行训练模型的java命令，这句话运行 “net.qihoo.xlearning.AM.ApplicationMaster.class”这个类，
+    // 对应此处为pdf文档中"XLearning执行流程"的第七步
     LOG.info("Building application master launch command");
     List<String> appMasterArgs = new ArrayList<>(20);
     appMasterArgs.add("${JAVA_HOME}" + "/bin/java");
@@ -681,7 +694,10 @@ public class Client {
     Resource capability = Records.newRecord(Resource.class);
     capability.setMemory(conf.getInt(XLearningConfiguration.XLEARNING_AM_MEMORY, XLearningConfiguration.DEFAULT_XLEARNING_AM_MEMORY));
     capability.setVirtualCores(conf.getInt(XLearningConfiguration.XLEARNING_AM_CORES, XLearningConfiguration.DEFAULT_XLEARNING_AM_CORES));
+
     applicationContext.setResource(capability);
+
+    // am的Container
     ContainerLaunchContext amContainer = ContainerLaunchContext.newInstance(
             localResources, appMasterEnv, appMasterLaunchcommands, null, null, null);
 
@@ -695,7 +711,8 @@ public class Client {
     try {
       // 21\\
       LOG.info("Submitting application to ResourceManager");
-      // 22\\内部有一个类会输出一句信息
+      // 22\\内部有一个类会输出一句信息：此处为pdf文档中"XLearning执行流程"的第三步，通过Client.java文件实现
+      // 在注册
       applicationId = yarnClient.submitApplication(applicationContext);
       isRunning.set(applicationId != null);
       if (isRunning.get()) {
@@ -709,16 +726,22 @@ public class Client {
     }
 
     boolean isApplicationSucceed = waitCompleted();
+
     return isApplicationSucceed;
   }
 
   private boolean waitCompleted() throws IOException, YarnException {
+
     ApplicationReport applicationReport = getApplicationReport(applicationId, yarnClient);
     // 24\\ ApplicationReport#getTrackingUrl 设置一个客户端可以监控进度的跟踪url。
     LOG.info("The url to track the job: " + applicationReport.getTrackingUrl());
+
     while (true) {
+
       assert (applicationReport != null);
+
       if (xlearningClient == null && isRunning.get()) {
+        // 25\\ 输出的样例： “Application report for application_1513044596696_001 (state: ACCEPTED)”
         LOG.info("Application report for " + applicationId +
                 " (state: " + applicationReport.getYarnApplicationState().toString() + ")");
         xlearningClient = getAppMessageHandler(conf, applicationReport.getHost(),
@@ -731,9 +754,10 @@ public class Client {
         xlearningClient = null;
         isRunning.set(false);
         if (FinalApplicationStatus.SUCCEEDED == finalApplicationStatus) {
+          // 运行成功，返回true
           return true;
         } else {
-          // 25\\ 输出的样例： “Application report for application_1513044596696_001 (state: ACCEPTED)”
+
           LOG.info("Application has completed failed with YarnApplicationState=" + yarnApplicationState.toString() +
                   " and FinalApplicationStatus=" + finalApplicationStatus.toString());
           return false;
@@ -768,8 +792,11 @@ public class Client {
 
       int logInterval = conf.getInt(XLearningConfiguration.XLEARNING_LOG_PULL_INTERVAL, XLearningConfiguration.DEFAULT_XLEARNING_LOG_PULL_INTERVAL);
       Utilities.sleep(logInterval);
+      // 如果连接失败，重试
       applicationReport = getApplicationReport(applicationId, yarnClient);
+
     }
+
   }
 
   public static void main(String[] args) {
