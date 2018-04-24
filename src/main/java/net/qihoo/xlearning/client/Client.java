@@ -56,7 +56,9 @@ public class Client {
 
   private Client(String[] args) throws IOException, ParseException, ClassNotFoundException {
     this.conf = new XLearningConfiguration();
+
     this.dfs = FileSystem.get(conf);
+
     // 对命令行参数进行解析：https://commons.apache.org/proper/commons-cli/usage.html
     this.clientArguments = new ClientArguments(args);
 
@@ -224,21 +226,27 @@ public class Client {
     }
   }
 
-  private static ApplicationReport getApplicationReport(ApplicationId appId, YarnClient yarnClient)
-          throws YarnException, IOException {
+  private static ApplicationReport getApplicationReport(ApplicationId appId, YarnClient yarnClient) throws YarnException, IOException {
     return yarnClient.getApplicationReport(appId);
   }
 
-  private static ApplicationMessageProtocol getAppMessageHandler(
-          YarnConfiguration conf, String appMasterAddress, int appMasterPort) throws IOException {
+  private static ApplicationMessageProtocol getAppMessageHandler(YarnConfiguration conf, String appMasterAddress, int appMasterPort) throws IOException {
+
     ApplicationMessageProtocol appMessageHandler = null;
+
     if (!StringUtils.isBlank(appMasterAddress) && !appMasterAddress.equalsIgnoreCase("N/A")) {
       InetSocketAddress addr = new InetSocketAddress(appMasterAddress, appMasterPort);
       appMessageHandler = RPC.getProxy(ApplicationMessageProtocol.class, ApplicationMessageProtocol.versionID, addr, conf);
     }
+
     return appMessageHandler;
   }
 
+  /**
+   * 检查任务运行时设置的参数是否在资源允许的范围内
+   * @param conf
+   * @param newApplication
+   */
   private void checkArguments(XLearningConfiguration conf, GetNewApplicationResponse newApplication) {
     int maxMem = newApplication.getMaximumResourceCapability().getMemory();
     // 8\\
@@ -414,16 +422,15 @@ public class Client {
     // 7\\打印新创建app对应的id，比如：application_1513044596696_001
     LOG.info("Got new Application: " + applicationId.toString());
 
-    Path jobConfPath = Utilities
-            .getRemotePath(conf, applicationId, XLearningConstants.XLEARNING_JOB_CONFIGURATION);
-    FSDataOutputStream out =
-            FileSystem.create(jobConfPath.getFileSystem(conf), jobConfPath,
-                    new FsPermission(JOB_FILE_PERMISSION));
+    Path jobConfPath = Utilities.getRemotePath(conf, applicationId, XLearningConstants.XLEARNING_JOB_CONFIGURATION);
+    FSDataOutputStream out = FileSystem.create(jobConfPath.getFileSystem(conf), jobConfPath, new FsPermission(JOB_FILE_PERMISSION));
+
     conf.writeXml(out);
     out.close();
+
     Map<String, LocalResource> localResources = new HashMap<>();
-    localResources.put(XLearningConstants.XLEARNING_JOB_CONFIGURATION,
-            Utilities.createApplicationResource(dfs, jobConfPath, LocalResourceType.FILE));
+
+    localResources.put(XLearningConstants.XLEARNING_JOB_CONFIGURATION, Utilities.createApplicationResource(dfs, jobConfPath, LocalResourceType.FILE));
 
     checkArguments(conf, newAppResponse);
 
@@ -441,14 +448,12 @@ public class Client {
     applicationContext.setApplicationType(clientArguments.appType);
 
     Path appJarSrc = new Path(clientArguments.appMasterJar);
-    Path appJarDst = Utilities
-            .getRemotePath(conf, applicationId, XLearningConstants.XLEARNING_APPLICATION_JAR);
+    Path appJarDst = Utilities.getRemotePath(conf, applicationId, XLearningConstants.XLEARNING_APPLICATION_JAR);
     // 15\\把XLearning的jar包复制到hdfs，并且重命名为AppMaster.jar
     LOG.info("Copying " + appJarSrc + " to remote path " + appJarDst.toString());
     dfs.copyFromLocalFile(false, true, appJarSrc, appJarDst);
 
-    localResources.put(XLearningConstants.XLEARNING_APPLICATION_JAR,
-            Utilities.createApplicationResource(dfs, appJarDst, LocalResourceType.FILE));
+    localResources.put(XLearningConstants.XLEARNING_APPLICATION_JAR, Utilities.createApplicationResource(dfs, appJarDst, LocalResourceType.FILE));
 
     // 16\\开始为application master设置building环境
     LOG.info("Building environments for the application master");
@@ -459,8 +464,9 @@ public class Client {
         // 设置需要运行的机器学习框架
         appMasterEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), clientArguments.appType);
     } else {
-      appMasterEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), XLearningConfiguration.DEFAULT_XLEARNING_APP_TYPE.toUpperCase());
+        appMasterEnv.put(XLearningConstants.Environment.XLEARNING_APP_TYPE.toString(), XLearningConfiguration.DEFAULT_XLEARNING_APP_TYPE.toUpperCase());
     }
+
     if (clientArguments.xlearningFiles != null) {
       Path[] xlearningFilesDst = new Path[clientArguments.xlearningFiles.length];
       // 17\\开始将需要用到的模型代码文件上传到hdfs
@@ -504,8 +510,7 @@ public class Client {
         assert (!clientArguments.libJars[i].isEmpty());
         if (!clientArguments.libJars[i].startsWith("hdfs://")) {
           Path jarFilesSrc = new Path(clientArguments.libJars[i]);
-          jarFilesDst[i] = Utilities.getRemotePath(
-                  conf, applicationId, new Path(clientArguments.libJars[i]).getName());
+          jarFilesDst[i] = Utilities.getRemotePath(conf, applicationId, new Path(clientArguments.libJars[i]).getName());
           LOG.info("Copying " + clientArguments.libJars[i] + " to remote path " + jarFilesDst[i].toString());
           dfs.copyFromLocalFile(false, true, jarFilesSrc, jarFilesDst[i]);
           appLibJarsRemotePath.append(jarFilesDst[i].toUri().toString()).append(",");
@@ -532,9 +537,9 @@ public class Client {
         libJarsClassPath += path.getName() + ":";
       }
     }
+
     StringBuilder classPathEnv = new StringBuilder("${CLASSPATH}:./*");
-    for (String cp : conf.getStrings(XLearningConfiguration.YARN_APPLICATION_CLASSPATH,
-            XLearningConfiguration.DEFAULT_XLEARNING_APPLICATION_CLASSPATH)) {
+    for (String cp : conf.getStrings(XLearningConfiguration.YARN_APPLICATION_CLASSPATH,XLearningConfiguration.DEFAULT_XLEARNING_APPLICATION_CLASSPATH)) {
       classPathEnv.append(':');
       classPathEnv.append(cp.trim());
     }
@@ -545,8 +550,7 @@ public class Client {
       appMasterEnv.put("CLASSPATH",  classPathEnv.toString() + ":" + libJarsClassPath);
     }
 
-    appMasterEnv.put(XLearningConstants.Environment.XLEARNING_STAGING_LOCATION.toString(), Utilities
-            .getRemotePath(conf, applicationId, "").toString());
+    appMasterEnv.put(XLearningConstants.Environment.XLEARNING_STAGING_LOCATION.toString(), Utilities.getRemotePath(conf, applicationId, "").toString());
 
     appMasterEnv.put(XLearningConstants.Environment.APP_JAR_LOCATION.toString(), appJarDst.toUri().toString());
     appMasterEnv.put(XLearningConstants.Environment.XLEARNING_JOB_CONF_LOCATION.toString(), jobConfPath.toString());
@@ -558,7 +562,9 @@ public class Client {
     }
 
     if (clientArguments.xlearningCacheFiles != null && !clientArguments.xlearningCacheFiles.equals("")) {
+
       appMasterEnv.put(XLearningConstants.Environment.XLEARNING_CACHE_FILE_LOCATION.toString(), clientArguments.xlearningCacheFiles);
+
       if ((clientArguments.appType.equals("MXNET") && !conf.getBoolean(XLearningConfiguration.XLEARNING_MXNET_MODE_SINGLE, XLearningConfiguration.DEFAULT_XLEARNING_MXNET_MODE_SINGLE))
               || clientArguments.appType.equals("DISTXGBOOST")) {
         URI defaultUri = new Path(conf.get("fs.defaultFS")).toUri();
@@ -806,7 +812,9 @@ public class Client {
       // 1\\
       LOG.info("Initializing Client");
       Client client = new Client(args);
+
       client.init();
+
       result = client.submitAndMonitor();
     } catch (Exception e) {
       LOG.fatal("Error running Client", e);
